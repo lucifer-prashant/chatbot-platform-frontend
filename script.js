@@ -1,62 +1,98 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('chatbotConfigForm');
-    const generateCodeBtn = document.getElementById('generateCodeBtn');
     const embedCodeSection = document.getElementById('embedCodeSection');
     const embedCodeOutput = document.getElementById('embedCodeOutput');
     const copyCodeBtn = document.getElementById('copyCodeBtn');
     const copyStatus = document.getElementById('copyStatus');
 
+    // The URL of YOUR hosted chatbot widget script
+    const CHATBOT_WIDGET_URL = 'https://lucifer-prashant.github.io/chatbot-platform-frontend/chatbot-widget.js';
+
     form.addEventListener('submit', function(event) {
         event.preventDefault();
 
-        const websiteUrl = document.getElementById('websiteUrl').value; // Not used in embed code yet, but good to have
+        const websiteUrl = document.getElementById('websiteUrl').value; // For your platform's internal use, not directly in widget config
         const chatbotName = document.getElementById('chatbotName').value;
         const theme = document.getElementById('theme').value;
         const language = document.getElementById('language').value;
+        const greeting = document.getElementById('greeting').value;
+        const mainColor = document.getElementById('mainColor').value;
+        const textColor = document.getElementById('textColor').value;
 
-        // In a real platform, siteId would be generated uniquely by your backend
-        // and associated with the user's account. For this demo, a simple random one.
-        const siteId = 'site_' + Math.random().toString(36).substring(2, 15);
+        // Generate a pseudo-unique siteId (in a real app, this comes from a backend)
+        const siteId = 'site_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
 
-        // IMPORTANT: The src for chatbot-widget.js should be your actual CDN URL in production.
-        // For local testing, we'll assume it's in the same directory.
-        const chatbotWidgetUrl = 'chatbot-widget.js'; // Replace with 'https://yourcdn.com/chatbot-widget.js' in production
+        // Escape double quotes in strings that will be part of the JS object
+        const escapeDoubleQuotes = (str) => str.replace(/"/g, '\\"');
 
         const embedCode = `
-<script src="${chatbotWidgetUrl}" defer></script>
+<!-- Start of MyChatPlatform Embed Code -->
+<script src="${CHATBOT_WIDGET_URL}" defer></script>
 <script>
   window.chatbotConfig = {
     siteId: "${siteId}",
     options: {
+      persona: "${escapeDoubleQuotes(chatbotName)}",
+      greeting: "${escapeDoubleQuotes(greeting)}",
       theme: "${theme}",
-      persona: "${chatbotName}",
+      mainColor: "${mainColor}",
+      textColor: "${textColor}",
       language: "${language}"
-      // You can add more pre-configured options here
+      // You can add more pre-configured options here from your form
     }
   };
-</script>`;
+</script>
+<!-- End of MyChatPlatform Embed Code -->`;
 
         embedCodeOutput.value = embedCode.trim();
         embedCodeSection.style.display = 'block';
-        copyStatus.style.display = 'none'; // Hide status if shown previously
+        copyStatus.textContent = ''; // Clear previous status
+        copyStatus.className = 'copy-status'; // Reset class
+
+        // Scroll to the embed code section
+        embedCodeSection.scrollIntoView({ behavior: 'smooth' });
     });
 
     copyCodeBtn.addEventListener('click', () => {
+        if (!embedCodeOutput.value) return;
+
         embedCodeOutput.select();
         embedCodeOutput.setSelectionRange(0, 99999); // For mobile devices
 
         try {
-            document.execCommand('copy');
-            copyStatus.textContent = 'Copied!';
-            copyStatus.style.color = 'green';
-        } catch (err) {
-            copyStatus.textContent = 'Failed to copy!';
-            copyStatus.style.color = 'red';
-            console.error('Failed to copy text: ', err);
+            // Using Clipboard API for modern browsers
+            navigator.clipboard.writeText(embedCodeOutput.value).then(() => {
+                copyStatus.textContent = 'Copied to clipboard!';
+                copyStatus.className = 'copy-status success';
+            }).catch(err => {
+                // Fallback for older browsers or if Clipboard API fails
+                oldCopyToClipboard();
+            });
+        } catch (e) {
+            oldCopyToClipboard(); // Fallback for very old browsers that don't even have navigator.clipboard
         }
-        copyStatus.style.display = 'inline';
+
         setTimeout(() => {
-            copyStatus.style.display = 'none';
-        }, 2000);
+            copyStatus.textContent = '';
+            copyStatus.className = 'copy-status';
+        }, 3000);
     });
+
+    // Fallback copy method
+    function oldCopyToClipboard() {
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                copyStatus.textContent = 'Copied (fallback method)!';
+                copyStatus.className = 'copy-status success';
+            } else {
+                copyStatus.textContent = 'Failed to copy. Please copy manually.';
+                copyStatus.className = 'copy-status error';
+            }
+        } catch (err) {
+            copyStatus.textContent = 'Error copying. Please copy manually.';
+            copyStatus.className = 'copy-status error';
+            console.error('Fallback copy: Oops, unable to copy', err);
+        }
+    }
 });
