@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configure Your Chatbot</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Configure Your Chatbot</h1>
+        <p>Fill in the details below to generate the embed code for your website.</p>
+
+        <form id="chatbotConfigForm">
+            <div class="form-group">
+                <label for="websiteUrl">Your Website URL:</label>
+                <input type="url" id="websiteUrl" name="websiteUrl" placeholder="https://example.com" required>
+            </div>
+
+            <div class="form-group">
+                <label for="chatbotName">Chatbot Name/Persona:</label>
+                <input type="text" id="chatbotName" name="chatbotName" placeholder="Support Bot" value="Support Assistant" required>
+            </div>
+
+            <div class="form-group">
+                <label for="theme">Theme:</label>
+                <select id="theme" name="theme">
+                    <option value="light" selected>Light</option>
+                    <option value="dark">Dark</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="language">Language:</label>
+                <select id="language" name="language">
+                    <option value="en" selected>English (en)</option>
+                    <option value="es">Español (es)</option>
+                    <option value="fr">Français (fr)</option>
+                    {/* Add more languages as needed */}
+                </select>
+            </div>
+
+
+            <button type="submit" id="generateCodeBtn">Generate Embed Code</button>
+        </form>
+
+        <div id="embedCodeSection" style="display:none;">
+            <h2>Your Embed Code</h2>
+            <p>Copy this snippet and paste it just before the closing <code></body></code> tag in your website’s HTML files.</p>
+            <textarea id="embedCodeOutput" rows="10" readonly></textarea>
+            <button id="copyCodeBtn">Copy Code</button>
+            <p id="copyStatus" style="display:none; color: green;">Copied!</p>
+        </div>
+
+        <hr>
+        <h2>Test Area (Simulating User's Website)</h2>
+        <p>You can paste the generated code below into a test HTML file to see it in action.
+           Ensure <code>chatbot-widget.js</code> is accessible (for this demo, it's in the same folder).</p>
+        <div id="testEmbedArea">
+            <!-- User would paste their generated code into their website's HTML like this -->
+            <!-- Example (will be populated by JS later for quick test): -->
+            <!--
+            <script src="chatbot-widget.js" defer></script>
+            <script>
+              window.chatbotConfig = {
+                siteId: "generatedSiteId",
+                options: {
+                  theme: "light",
+                  persona: "Support Bot",
+                  language: "en"
+                }
+              };
+            </script>
+            -->
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
