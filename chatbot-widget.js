@@ -16,11 +16,14 @@
                 pulseAnimation: true,
                 windowWidth: 350,
                 windowHeight: 520,
-                enablePageContentContext: false,
+                enablePageContentContext: true, // Defaulting to true for GenAI focus
                 pageContentContextGreetingSuffix: " I can also try to answer questions about this page.",
-                hfToken: null, 
-                hfApiUrl: 'https://api-inference.huggingface.co/models/deepset/roberta-base-squad2',
-                hfConfidenceThreshold: 0.1 
+                hfToken: null,
+                // hfApiUrl: 'https://api-inference.huggingface.co/models/deepset/roberta-base-squad2', // Extractive QA
+                // hfConfidenceThreshold: 0.1,
+                hfGenerativeApiUrl: 'https://api-inference.huggingface.co/models/gpt2', // Using GPT-2 as a widely available generative model.
+                                                                                       // You can try others like 'mistralai/Mistral-7B-Instruct-v0.1' but expect more loading/rate issues on free tier.
+                maxContextLengthForGenAI: 1500, // Max characters of page context to send to generative AI
             }
         };
 
@@ -30,7 +33,7 @@
             options: { ...defaultConfig.options, ...userConfig.options }
         };
 
-        console.log('Chatbot Loaded with config:', config);
+        console.log('Chatbot Loaded with GenAI config:', config);
 
         if (config.options.enablePageContentContext && window.ChatbotContentScraper && typeof window.ChatbotContentScraper.scrape === 'function') {
             console.log('Chatbot: Page content context is enabled. Attempting to scrape page.');
@@ -49,7 +52,7 @@
         let isDragging = false;
         let offsetX, offsetY;
         let lastWindowPosition = { x: null, y: null };
-        let lastBotResponseInfo = null; // To store info about the last bot response for follow-ups
+        // No longer using lastBotResponseInfo for simple heading follow-up, as GenAI should handle context better.
 
         const chatIconSvg = `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24px" height="24px">
@@ -67,7 +70,7 @@
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
             </svg>`;
 
-        function createChatbotElements() { /* ... (no changes to this function) ... */ 
+        function createChatbotElements() { /* ... (no changes to this function from previous correct version) ... */ 
             chatbotContainer = document.createElement('div');
             chatbotContainer.id = 'my-chatbot-container';
             chatbotContainer.style.position = 'fixed';
@@ -107,7 +110,7 @@
             internalCloseButton = document.getElementById('my-chatbot-close-btn');
         }
 
-        function applyStyles() { /* ... (no changes to this function) ... */ 
+        function applyStyles() { /* ... (no changes to this function from previous correct version) ... */ 
             const style = document.createElement('style');
             const themeStyles = {
                 light: {
@@ -239,7 +242,7 @@
             document.head.appendChild(style);
         }
         
-        function setIconContainerPosition() { /* ... (no changes to this function) ... */ 
+        function setIconContainerPosition() { /* ... (no changes) ... */ 
             const margin = '20px';
             chatbotContainer.style.width = 'auto';
             chatbotContainer.style.height = 'auto';
@@ -252,7 +255,7 @@
             }
         }
 
-        function setWindowContainerPosition(isInitialOpen = false) { /* ... (no changes to this function) ... */ 
+        function setWindowContainerPosition(isInitialOpen = false) { /* ... (no changes) ... */ 
             const margin = 20;
             chatbotContainer.style.width = config.options.windowWidth + 'px';
             chatbotContainer.style.height = config.options.windowHeight + 'px';
@@ -274,7 +277,7 @@
             }
         }
 
-        function addMessage(text, sender, isTyping = false) { /* ... (no changes to this function) ... */ 
+        function addMessage(text, sender, isTyping = false) { /* ... (no changes) ... */ 
             const messageElement = document.createElement('div');
             messageElement.classList.add('chatbot-message', sender);
             if (isTyping) {
@@ -290,7 +293,7 @@
             return messageElement;
         }
 
-        function openChatWindow() { /* ... (slight change in greeting logic, but mostly same) ... */ 
+        function openChatWindow() { /* ... (no changes) ... */ 
             if (isChatOpen) return;
             isChatOpen = true;
             setWindowContainerPosition(true);
@@ -314,7 +317,7 @@
             }
         }
 
-        function closeChatWindow() { /* ... (no changes to this function) ... */ 
+        function closeChatWindow() { /* ... (no changes) ... */ 
             if (!isChatOpen) return;
             const currentRect = chatbotContainer.getBoundingClientRect();
             lastWindowPosition.x = currentRect.left;
@@ -332,156 +335,146 @@
 
         async function getBotResponse(userInput) {
             const lowerInput = userInput.toLowerCase().trim();
-            const { hfToken, hfApiUrl, hfConfidenceThreshold, enablePageContentContext } = config.options;
-            let botReply = { text: "", type: "fallback", sectionContext: null }; // Store structured reply
+            const { hfToken, hfGenerativeApiUrl, enablePageContentContext, maxContextLengthForGenAI } = config.options;
+            let botReplyText = "";
 
-            // 0. Handle direct follow-up questions about a previously mentioned heading
-            const followUpKeywords = ["tell me more", "expand", "details", "elaborate", "yes expand on it", "give me details"];
-            if (lastBotResponseInfo && lastBotResponseInfo.type === 'heading_prompt' && lastBotResponseInfo.headingText &&
-                followUpKeywords.some(kw => lowerInput.includes(kw))) {
-                console.log("Chatbot: Handling follow-up for heading:", lastBotResponseInfo.headingText);
-                if (enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
-                    const detailSearchResult = window.ChatbotContentScraper.search(lastBotResponseInfo.headingText, { type: 'details_for_heading', topicHint: lastBotResponseInfo.headingText });
-                    if (detailSearchResult && detailSearchResult.answer) {
-                        botReply = { text: detailSearchResult.answer, type: "details", sectionContext: detailSearchResult.sectionContext };
-                        lastBotResponseInfo = null; // Clear follow-up state
-                        return botReply; // Return early with detailed answer
-                    }
+            // Priority 1: Generative AI if token, API URL, and context are available
+            if (hfToken && hfGenerativeApiUrl && enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
+                const pageData = window.ChatbotContentScraper.getData();
+                let relevantContext = "";
+
+                // Try to get focused context from scraper search first
+                const localSearchResult = window.ChatbotContentScraper.search(userInput);
+                if (localSearchResult && localSearchResult.sectionContext) {
+                    relevantContext = localSearchResult.sectionContext;
+                } else if (pageData && pageData.fullText) {
+                    relevantContext = pageData.fullText; // Fallback to full text
                 }
-            }
-            // Reset if not a direct follow-up, or if it was handled.
-            // lastBotResponseInfo = null; // Reset for new unrelated query - This is now handled after the full response is determined
 
-            // 1. Attempt Hugging Face QA
-            let aiContext = null;
-            let localSearchForAIContext = null;
-
-            if (enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
-                localSearchForAIContext = window.ChatbotContentScraper.search(userInput);
-                if (localSearchForAIContext && localSearchForAIContext.sectionContext) {
-                    aiContext = localSearchForAIContext.sectionContext;
-                } else {
-                    const pageData = window.ChatbotContentScraper.getData();
-                    aiContext = pageData ? pageData.fullText.substring(0,3000) : "";
+                if (relevantContext.length > maxContextLengthForGenAI) {
+                    relevantContext = relevantContext.substring(0, maxContextLengthForGenAI);
                 }
-            }
-            
-            if (hfToken && hfApiUrl && aiContext && aiContext.length > 30) {
-                console.log("Chatbot: Attempting Hugging Face QA with context length:", aiContext.length);
-                try {
-                    const response = await fetch(hfApiUrl, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${hfToken}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ inputs: { question: userInput, context: aiContext } })
-                    });
-                    if (!response.ok) {
-                        // ... (error handling as before, setting botReply.text to error message) ...
-                        const errorData = await response.json().catch(() => ({ error: "Unknown API error" }));
-                        console.error("Chatbot: Hugging Face API Error:", response.status, errorData);
-                        if (response.status === 401) botReply.text = "AI features unavailable: Invalid Hugging Face Token.";
-                        else if (response.status === 429) botReply.text = "AI features temporarily unavailable (rate limit).";
-                        else if (errorData && errorData.error && typeof errorData.error === 'string' && errorData.error.includes("currently loading")) {
-                             botReply.text = `The AI model is currently loading (est. ${errorData.estimated_time || 'N/A'}s). Please try again shortly.`;
-                        } else botReply.text = "AI features encountered an issue. Falling back.";
-                        botReply.type = "error_ai";
-                    } else {
-                        const result = await response.json();
-                        if (result && result.answer && result.score >= hfConfidenceThreshold) {
-                            console.log("Chatbot: Hugging Face QA successful.", result);
-                            botReply = { text: result.answer, type: "ai_answer", sectionContext: aiContext };
-                            // AI answered, so we can return this.
-                            // We'll set lastBotResponseInfo outside this function based on the final botReply.
-                            return botReply;
+                
+                if (relevantContext && relevantContext.length > 30) { // Ensure context is somewhat substantial
+                    console.log("Chatbot: Attempting Generative AI with context length:", relevantContext.length);
+                    
+                    const pageTitle = pageData ? pageData.title : "this page";
+                    const prompt = `You are a helpful AI assistant for the website titled "${pageTitle}".
+Your role is to answer questions based ONLY on the following context from the webpage.
+If the answer is not clearly found in the context, state that the information isn't available on this page.
+Be concise and helpful. Do not make up information outside the provided context.
+
+Context from the webpage:
+---
+${relevantContext}
+---
+
+User's question: ${userInput}
+
+Assistant's Answer:`;
+
+                    try {
+                        const response = await fetch(hfGenerativeApiUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${hfToken}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                inputs: prompt,
+                                parameters: { // Parameters for text generation
+                                    max_new_tokens: 150, // Limit response length
+                                    return_full_text: false, // Only return the generated part
+                                    do_sample: true,
+                                    temperature: 0.7,
+                                    top_p: 0.9,
+                                }
+                            })
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({ error: "Unknown API error" }));
+                            console.error("Chatbot: Generative AI API Error:", response.status, errorData);
+                            if (response.status === 401) botReplyText = "AI features unavailable: Invalid Hugging Face Token.";
+                            else if (response.status === 429 || response.status === 503) botReplyText = "AI features temporarily overloaded. Please try again in a moment.";
+                            else if (errorData && errorData.error && typeof errorData.error === 'string' && errorData.error.includes("currently loading")) {
+                                 botReplyText = `The AI model is currently loading (est. ${errorData.estimated_time || 'N/A'}s). Please try again shortly.`;
+                            } else botReplyText = "AI features encountered an issue. Falling back to simpler responses.";
                         } else {
-                            console.log("Chatbot: HF QA returned no confident answer or unexpected result:", result);
+                            const result = await response.json();
+                            // Accessing the generated text - structure can vary by model/API
+                            if (result && Array.isArray(result) && result[0] && result[0].generated_text) {
+                                botReplyText = result[0].generated_text.trim();
+                                console.log("Chatbot: Generative AI successful.", botReplyText);
+                            } else if (result && result.generated_text) { // Some models might return this directly
+                                botReplyText = result.generated_text.trim();
+                                console.log("Chatbot: Generative AI successful.", botReplyText);
+                            } else {
+                                console.log("Chatbot: Gen AI returned unexpected result format:", result);
+                                botReplyText = "AI response format was unclear. Try rephrasing.";
+                            }
                         }
+                    } catch (e) {
+                        console.error("Chatbot: Error calling Generative AI API:", e);
+                        botReplyText = "Could not reach AI services. Falling back to simpler responses.";
                     }
-                } catch (e) {
-                    console.error("Chatbot: Error calling Hugging Face API:", e);
-                    botReply.text = "Could not reach AI services. Falling back.";
-                    botReply.type = "error_api";
+                    // If AI provided any response (even an error message for user), return it
+                    if (botReplyText) return botReplyText;
+                } else {
+                     console.log("Chatbot: Context not substantial enough for Generative AI or page not scraped.");
                 }
             }
 
-            // If AI provided an error message, return that
-            if (botReply.type === "error_ai" || botReply.type === "error_api") {
-                return botReply;
-            }
-
-            // 2. Basic hardcoded responses
+            // Priority 2: Basic hardcoded responses (if AI failed or wasn't used)
             if (lowerInput.includes("hello") || lowerInput.includes("hi") || lowerInput.includes("hey")) {
-                botReply = { text: "Hello there! How can I assist you today?", type: "greeting" };
+                return "Hello there! How can I assist you today?";
             } else if (lowerInput.includes("how are you")) {
-                botReply = { text: "I'm functioning optimally! Thanks for asking. How can I help?", type: "status" };
+                return "I'm functioning optimally! Thanks for asking. How can I help?";
             } else if (lowerInput.includes("your name") || lowerInput.includes("who are you")) {
-                botReply = { text: `I am ${config.options.persona}, your virtual assistant.`, type: "identity" };
+                return `I am ${config.options.persona}, your virtual assistant.`;
             } else if (lowerInput.includes("help") || lowerInput.includes("support")) {
                 let helpMsg = "Sure, I can try to help. Please describe your question or issue.";
                 if (enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
                      helpMsg += " You can also ask me about the content on this page.";
                 }
-                botReply = { text: helpMsg, type: "help" };
+                return helpMsg;
             } else if (lowerInput.includes("time")) {
-                botReply = { text: `The current time is ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`, type: "time" };
+                return `The current time is ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`;
             } else if (lowerInput.includes("date")) {
-                botReply = { text: `Today's date is ${new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`, type: "date" };
+                return `Today's date is ${new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
             } else if (lowerInput.includes("thank you") || lowerInput.includes("thanks")) {
-                botReply = { text: "You're welcome! Is there anything else I can do for you?", type: "thanks" };
+                return "You're welcome! Is there anything else I can do for you?";
             } else if (lowerInput.includes("bye") || lowerInput.includes("goodbye")) {
-                botReply = { text: "Goodbye! Have a wonderful day.", type: "goodbye" };
+                return "Goodbye! Have a wonderful day.";
             } else if (lowerInput.includes("joke")) {
-                const jokes = [ /* ... jokes ... */ ];
-                botReply = { text: jokes[Math.floor(Math.random() * jokes.length)], type: "joke" };
-            }
-
-            // If hardcoded response found, return it
-            if (botReply.type !== "fallback" && botReply.type !== "ai_answer") { // if not default or AI
-                // No specific lastBotResponseInfo needed for these simple hardcoded ones
-                return botReply;
-            }
-
-            // 3. Try to answer from local page content scraper (if AI didn't answer or wasn't used)
-            // Use the localSearchForAIContext result if available and AI didn't answer
-            if (enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
-                const localSearchResult = localSearchForAIContext || window.ChatbotContentScraper.search(userInput); // Use cached or new search
-                if (localSearchResult && localSearchResult.answer) {
-                    botReply = {
-                        text: localSearchResult.answer,
-                        type: localSearchResult.type, // 'heading_prompt', 'details', 'paragraph'
-                        headingText: localSearchResult.headingText, // Store heading if it was a prompt
-                        rawAnswer: localSearchResult.rawAnswer,
-                        sectionContext: localSearchResult.sectionContext
-                    };
-                    // If local search provided an answer, we use this.
-                    // lastBotResponseInfo will be set outside based on this botReply.
-                    return botReply;
-                }
-            }
-            
-            // 4. More generic fallbacks if input is very short
-            if (botReply.type === "fallback" && lowerInput.length > 0 && lowerInput.length < 4) {
-                 botReply.text = "Could you please elaborate a little more on that?";
-            }
-
-            // 5. Final fallbacks
-            if (botReply.type === "fallback" || botReply.text === "") { // If still no answer
-                const fallbacks = [
-                    "I'm still learning. Could you rephrase that or ask something else?",
-                    "Sorry, I didn't quite understand. How about asking in a different way?",
-                    `I'm not sure about that. You can ask about our services or general topics.`,
-                    "My apologies, I don't have specific information on that right now."
+                const jokes = [
+                    "Why don't scientists trust atoms? Because they make up everything!",
+                    "I told my wife she was drawing her eyebrows too high. She seemed surprised.",
+                    "Why did the scarecrow win an award? Because he was outstanding in his field!",
+                    "Parallel lines have so much in common. It’s a shame they’ll never meet."
                 ];
-                if (enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
-                    fallbacks.push("I couldn't find specific information about that on this page. Could you try asking differently?");
+                return jokes[Math.floor(Math.random() * jokes.length)];
+            }
+
+            // Priority 3: Fallback to simpler extractive search if GenAI failed and no hardcoded match
+            if (enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
+                const localSearchResult = window.ChatbotContentScraper.search(userInput);
+                if (localSearchResult && localSearchResult.answer) {
+                    // Check if it's just a heading prompt, if so, make it more of an answer
+                    if (localSearchResult.type === 'heading_prompt' && localSearchResult.rawAnswer) {
+                        return `I found a section titled "${localSearchResult.rawAnswer}". It might contain the information you're looking for.`;
+                    }
+                    return localSearchResult.answer; // This already prepends "Based on this page:"
                 }
-                 if (hfToken && enablePageContentContext) {
-                    fallbacks.push("I couldn't find a specific answer on this page using AI. Try rephrasing or asking a more general question.");
-                }
-                botReply.text = fallbacks[Math.floor(Math.random() * fallbacks.length)];
             }
             
-            // If we reached here, it's a fallback or a short elaboration request
-            return botReply;
+            // Priority 4: Final fallbacks
+            const fallbacks = [
+                "I'm still learning and couldn't find a specific answer. Could you rephrase that?",
+                "Sorry, I didn't quite understand that. How about asking in a different way?",
+                "My apologies, I don't have specific information on that topic from this page."
+            ];
+            return fallbacks[Math.floor(Math.random() * fallbacks.length)];
         }
 
         async function handleSendMessage() {
@@ -492,25 +485,18 @@
                 inputField.focus();
 
                 const typingIndicator = addMessage('', 'bot', true);
-                await new Promise(resolve => setTimeout(resolve, 100)); 
+                await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 400)); // Slightly longer to feel more "thoughtful"
 
-                const botResponseObject = await getBotResponse(messageText);
+                const botResponseText = await getBotResponse(messageText);
 
                 if (typingIndicator && typingIndicator.parentNode) {
                     messagesDiv.removeChild(typingIndicator);
                 }
-                addMessage(botResponseObject.text, 'bot');
-
-                // Update lastBotResponseInfo for potential follow-ups
-                if (botResponseObject.type === 'heading_prompt' && botResponseObject.headingText) {
-                    lastBotResponseInfo = { type: 'heading_prompt', headingText: botResponseObject.headingText };
-                } else {
-                    lastBotResponseInfo = null; // Clear if not a heading prompt
-                }
+                addMessage(botResponseText, 'bot');
             }
         }
 
-        function onMouseDown(e) { /* ... (no changes to this function) ... */ 
+        function onMouseDown(e) { /* ... (no changes) ... */ 
             if (e.target.closest('button, input, #my-chatbot-messages, #my-chatbot-input-area')) return;
             if (e.target.id !== 'my-chatbot-header' && !e.target.closest('#my-chatbot-header')) return;
 
@@ -524,7 +510,7 @@
             document.addEventListener('mouseup', onMouseUp);
         }
 
-        function onMouseMove(e) { /* ... (no changes to this function) ... */ 
+        function onMouseMove(e) { /* ... (no changes) ... */ 
             if (!isDragging) return;
             e.preventDefault(); 
             let newX = e.clientX - offsetX;
@@ -541,7 +527,7 @@
             chatbotContainer.style.bottom = 'auto'; 
         }
 
-        function onMouseUp() { /* ... (no changes to this function) ... */ 
+        function onMouseUp() { /* ... (no changes) ... */ 
             if (!isDragging) return;
             isDragging = false;
             chatbotContainer.style.cursor = 'move'; 
@@ -550,7 +536,7 @@
             document.removeEventListener('mouseup', onMouseUp);
         }
 
-        function setupEventListeners() { /* ... (no changes to this function) ... */ 
+        function setupEventListeners() { /* ... (no changes) ... */ 
             chatButton.addEventListener('click', openChatWindow);
             internalCloseButton.addEventListener('click', closeChatWindow);
             sendButton.addEventListener('click', handleSendMessage);
@@ -568,6 +554,6 @@
         setIconContainerPosition(); 
         setupEventListeners();
 
-        console.log(`Chatbot for site ${config.siteId} (AI: ${config.options.hfToken ? 'Yes' : 'No'}, Page-Context: ${config.options.enablePageContentContext ? 'Enabled' : 'Disabled'}) initialized.`);
+        console.log(`Chatbot for site ${config.siteId} (GenAI: ${config.options.hfToken ? 'Enabled' : 'Disabled'}, Page-Context: ${config.options.enablePageContentContext ? 'Enabled' : 'Disabled'}) initialized.`);
     });
 })();
