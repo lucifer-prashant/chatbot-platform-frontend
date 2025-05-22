@@ -16,8 +16,11 @@
                 pulseAnimation: true,
                 windowWidth: 350,
                 windowHeight: 520,
-                enablePageContentContext: false, // New option
-                pageContentContextGreetingSuffix: " I can also try to answer questions about this page." // Suffix for greeting if context is enabled
+                enablePageContentContext: false,
+                pageContentContextGreetingSuffix: " I can also try to answer questions about this page.",
+                hfToken: null, // New option for Hugging Face API Token
+                hfApiUrl: 'https://api-inference.huggingface.co/models/deepset/roberta-base-squad2', // Default QA model
+                hfConfidenceThreshold: 0.1 // Minimum confidence score for HF answer
             }
         };
 
@@ -243,7 +246,7 @@
             if (config.options.iconPosition === 'bottom-left') {
                 chatbotContainer.style.left = margin; chatbotContainer.style.right = 'auto';
                 chatbotContainer.style.bottom = margin; chatbotContainer.style.top = 'auto';
-            } else {
+            } else { // bottom-right is default
                 chatbotContainer.style.right = margin; chatbotContainer.style.left = 'auto';
                 chatbotContainer.style.bottom = margin; chatbotContainer.style.top = 'auto';
             }
@@ -258,14 +261,14 @@
                 if (config.options.windowAlignment === 'bottom-left') {
                     chatbotContainer.style.left = margin + 'px'; chatbotContainer.style.bottom = margin + 'px';
                     chatbotContainer.style.right = 'auto'; chatbotContainer.style.top = 'auto';
-                } else {
+                } else { // bottom-right is default
                     chatbotContainer.style.right = margin + 'px'; chatbotContainer.style.bottom = margin + 'px';
                     chatbotContainer.style.left = 'auto'; chatbotContainer.style.top = 'auto';
                 }
             } else if (lastWindowPosition.x !== null) {
                 chatbotContainer.style.left = lastWindowPosition.x + 'px'; chatbotContainer.style.top = lastWindowPosition.y + 'px';
                 chatbotContainer.style.bottom = 'auto'; chatbotContainer.style.right = 'auto';
-            } else {
+            } else { // Fallback, e.g. if called when not initial and no last position
                  chatbotContainer.style.right = margin + 'px'; chatbotContainer.style.bottom = margin + 'px';
                  chatbotContainer.style.left = 'auto'; chatbotContainer.style.top = 'auto';
             }
@@ -293,7 +296,7 @@
             setWindowContainerPosition(true);
             chatButton.style.display = 'none';
             chatWindow.style.display = 'flex';
-            void chatWindow.offsetWidth;
+            void chatWindow.offsetWidth; // Trigger reflow for transition
             chatWindow.classList.add('open');
             inputField.focus();
 
@@ -319,18 +322,77 @@
             isChatOpen = false;
             chatWindow.classList.remove('open');
             setTimeout(() => {
-                if (!isChatOpen) {
+                if (!isChatOpen) { // Ensure it wasn't re-opened quickly
                     chatWindow.style.display = 'none';
                     chatButton.style.display = 'flex';
                     setIconContainerPosition();
                 }
-            }, 260);
+            }, 260); // Should match transition duration
         }
 
-        function getBotResponse(userInput) {
+        async function getBotResponse(userInput) {
             const lowerInput = userInput.toLowerCase().trim();
+            const { hfToken, hfApiUrl, hfConfidenceThreshold, enablePageContentContext } = config.options;
 
-            // 1. Basic hardcoded responses
+            // Priority 1: Hugging Face QA if token, API URL, and context are available
+            if (hfToken && hfApiUrl && enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
+                const pageData = window.ChatbotContentScraper.getData();
+                let context = pageData ? pageData.fullText : "";
+                
+                // Limit context to avoid overly large payloads (HF models have limits)
+                // Common limits are around 512 tokens; 3000 chars is a rough estimate.
+                if (context.length > 3000) {
+                    context = context.substring(0, 3000); 
+                }
+
+                if (context && context.length > 30) { // Ensure context is somewhat substantial
+                    console.log("Chatbot: Attempting Hugging Face QA with context.");
+                    try {
+                        const response = await fetch(hfApiUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${hfToken}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                inputs: {
+                                    question: userInput,
+                                    context: context
+                                }
+                            })
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({ error: "Unknown API error" }));
+                            console.error("Chatbot: Hugging Face API Error:", response.status, errorData);
+                            if (response.status === 401) {
+                                 return "AI features unavailable: Invalid Hugging Face Token. Please check configuration. Falling back to standard responses.";
+                            } else if (response.status === 429) {
+                                return "AI features temporarily unavailable due to high demand. Please try again later. Falling back to standard responses.";
+                            } else if (errorData && errorData.error && typeof errorData.error === 'string' && errorData.error.includes("currently loading")) {
+                                return `The AI model is currently loading (est. ${errorData.estimated_time || 'N/A'}s). Please try again shortly.`;
+                            }
+                            // Other errors, fall through to standard responses
+                        } else {
+                            const result = await response.json();
+                            if (result && result.answer && result.score >= hfConfidenceThreshold) {
+                                console.log("Chatbot: Hugging Face QA successful.", result);
+                                return result.answer;
+                            } else {
+                                console.log("Chatbot: HF QA returned no confident answer or unexpected result:", result);
+                                // Fall through if no good answer from HF
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Chatbot: Error calling Hugging Face API:", e);
+                        // Fall through to standard responses
+                    }
+                } else {
+                     console.log("Chatbot: Context not substantial enough for HF QA.");
+                }
+            }
+
+            // Priority 2: Basic hardcoded responses
             if (lowerInput.includes("hello") || lowerInput.includes("hi") || lowerInput.includes("hey")) {
                 return "Hello there! How can I assist you today?";
             } else if (lowerInput.includes("how are you")) {
@@ -339,7 +401,7 @@
                 return `I am ${config.options.persona}, your virtual assistant.`;
             } else if (lowerInput.includes("help") || lowerInput.includes("support")) {
                 let helpMsg = "Sure, I can try to help. Please describe your question or issue.";
-                if (config.options.enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
+                if (enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
                      helpMsg += " You can also ask me about the content on this page.";
                 }
                 return helpMsg;
@@ -361,33 +423,36 @@
                 return jokes[Math.floor(Math.random() * jokes.length)];
             }
 
-            // 2. Try to answer from page content if enabled and available
-            if (config.options.enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
+            // Priority 3: Try to answer from page content using local scraper (if HF didn't answer or wasn't used)
+            if (enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
                 const pageContextAnswer = window.ChatbotContentScraper.search(userInput);
                 if (pageContextAnswer) {
-                    return pageContextAnswer;
+                    return pageContextAnswer; // This already prepends "Based on this page:"
                 }
             }
             
-            // 3. More generic fallbacks if input is very short or no context found
-            if (lowerInput.length > 0 && lowerInput.length < 4 && (!config.options.enablePageContentContext || !window.ChatbotContentScraper || !window.ChatbotContentScraper.isScraped())) {
+            // Priority 4: More generic fallbacks if input is very short
+            if (lowerInput.length > 0 && lowerInput.length < 4 && (!enablePageContentContext || !window.ChatbotContentScraper || !window.ChatbotContentScraper.isScraped() || !hfToken)) {
                  return "Could you please elaborate a little more on that?";
             }
 
-            // 4. Final fallbacks
+            // Priority 5: Final fallbacks
             const fallbacks = [
                 "I'm still learning. Could you rephrase that or ask something else?",
                 "Sorry, I didn't quite understand. How about asking in a different way?",
                 `I'm not sure about that. You can ask about our services or general topics.`,
                 "My apologies, I don't have specific information on that right now."
             ];
-            if (config.options.enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
+            if (enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
                 fallbacks.push("I couldn't find specific information about that on this page. Could you try asking differently?");
+            }
+             if (hfToken && enablePageContentContext) {
+                fallbacks.push("I couldn't find a specific answer on this page using AI. Try rephrasing or asking a more general question.");
             }
             return fallbacks[Math.floor(Math.random() * fallbacks.length)];
         }
 
-        function handleSendMessage() {
+        async function handleSendMessage() { // Made async
             const messageText = inputField.value.trim();
             if (messageText) {
                 addMessage(messageText, 'user');
@@ -395,49 +460,60 @@
                 inputField.focus();
 
                 const typingIndicator = addMessage('', 'bot', true);
+                
+                // Artificial delay for UX, also gives HF API time to respond
+                // but the main wait is handled by awaiting getBotResponse
+                // Using a very short delay just for visual feedback of typing indicator appearing.
+                await new Promise(resolve => setTimeout(resolve, 100)); 
 
-                setTimeout(() => {
-                    if (typingIndicator && typingIndicator.parentNode) {
-                        messagesDiv.removeChild(typingIndicator);
-                    }
-                    const botResponse = getBotResponse(messageText);
-                    addMessage(botResponse, 'bot');
-                }, 600 + Math.random() * 700);
+                const botResponse = await getBotResponse(messageText); // Await the async function
+
+                if (typingIndicator && typingIndicator.parentNode) { // Check if still exists
+                    messagesDiv.removeChild(typingIndicator);
+                }
+                addMessage(botResponse, 'bot');
             }
         }
 
         function onMouseDown(e) {
-            if (e.target.closest('button, input, #my-chatbot-messages')) return;
+            // Ensure dragging only happens on the header, not on buttons or input fields inside it.
+            if (e.target.closest('button, input, #my-chatbot-messages, #my-chatbot-input-area')) return;
+            if (e.target.id !== 'my-chatbot-header' && !e.target.closest('#my-chatbot-header')) return;
+
+
             isDragging = true;
             const containerRect = chatbotContainer.getBoundingClientRect();
             offsetX = e.clientX - containerRect.left;
             offsetY = e.clientY - containerRect.top;
             chatbotContainer.style.cursor = 'grabbing';
-            document.body.style.userSelect = 'none';
+            document.body.style.userSelect = 'none'; // Prevent text selection during drag
             document.addEventListener('mousemove', onMouseMove);
             document.addEventListener('mouseup', onMouseUp);
         }
 
         function onMouseMove(e) {
             if (!isDragging) return;
-            e.preventDefault();
+            e.preventDefault(); // Prevent default drag behavior (e.g., image ghosting)
             let newX = e.clientX - offsetX;
             let newY = e.clientY - offsetY;
             const contWidth = chatbotContainer.offsetWidth;
             const contHeight = chatbotContainer.offsetHeight;
+
+            // Keep window within viewport
             newX = Math.max(0, Math.min(newX, window.innerWidth - contWidth));
             newY = Math.max(0, Math.min(newY, window.innerHeight - contHeight));
+            
             chatbotContainer.style.left = newX + 'px';
             chatbotContainer.style.top = newY + 'px';
-            chatbotContainer.style.right = 'auto';
-            chatbotContainer.style.bottom = 'auto';
+            chatbotContainer.style.right = 'auto'; // Override fixed positioning from alignment
+            chatbotContainer.style.bottom = 'auto'; // Override fixed positioning from alignment
         }
 
         function onMouseUp() {
             if (!isDragging) return;
             isDragging = false;
-            chatbotContainer.style.cursor = 'default';
-            document.body.style.userSelect = '';
+            chatbotContainer.style.cursor = 'move'; // Reset to 'move' for the header
+            document.body.style.userSelect = ''; // Re-enable text selection
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
         }
@@ -448,18 +524,19 @@
             sendButton.addEventListener('click', handleSendMessage);
             inputField.addEventListener('keypress', (event) => {
                 if (event.key === 'Enter') {
-                    event.preventDefault();
+                    event.preventDefault(); // Prevent form submission if it were in a form
                     handleSendMessage();
                 }
             });
             chatHeader.addEventListener('mousedown', onMouseDown);
         }
 
+        // ---- Initialization ----
         createChatbotElements();
         applyStyles();
-        setIconContainerPosition();
+        setIconContainerPosition(); // Set initial position for the button
         setupEventListeners();
 
-        console.log(`Chatbot for site ${config.siteId} (draggable, page-context aware) initialized.`);
+        console.log(`Chatbot for site ${config.siteId} (AI Capable: ${config.options.hfToken ? 'Yes' : 'No'}, Page-Context: ${config.options.enablePageContentContext ? 'Enabled' : 'Disabled'}) initialized.`);
     });
 })();

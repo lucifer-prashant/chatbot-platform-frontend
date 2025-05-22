@@ -1,41 +1,74 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-T">
+    <meta charset="UTF-8"> <!-- Corrected from UTF-T -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Test Website</title>
+    <title>My Local Test Website (AI Enabled)</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; height: 200vh; /* Long page to test fixed positioning */}
-        h1 { color: navy; }
+        body { font-family: sans-serif; padding: 20px; min-height: 150vh; }
+        h1 { color: darkgreen; }
+        article { max-width: 700px; margin: 20px auto; padding:15px; border:1px solid #ccc; background: #fafafa; }
+        .chatbot-ignore-content { color: #aaa; font-style: italic; }
     </style>
 </head>
 <body>
-    <h1>Welcome to My Test Website</h1>
-    <p>This page will have the chatbot embedded.</p>
-    <p>Some more content to make the page scrollable...</p>
-    <p>Lorem ipsum dolor sit amet...</p>
-    <!-- Start of MyChatPlatform Embed Code -->
-<script src="https://lucifer-prashant.github.io/chatbot-platform-frontend/chatbot-widget.js" defer></script>
+    <header>
+        <h1>Local Test Site for AI Chatbot</h1>
+    </header>
+
+    <nav class="chatbot-ignore-content">
+        <p>Local Nav: Test Links | Another Page (This nav content should be ignored)</p>
+    </nav>
+    
+    <main>
+        <article>
+            <h2>Learning About Local Development</h2>
+            <p>Local development is crucial for testing web applications before deployment. It allows developers to find and fix bugs in a controlled environment. Key tools for local development include code editors like VS Code, version control systems like Git, and local web servers.</p>
+            <p>This page specifically tests the chatbot's ability to understand content when running from local files. The chatbot should be able to answer questions about local development if the content scraper works correctly.</p>
+            
+            <h3>Benefits of Local Testing</h3>
+            <ul>
+                <li>Faster iteration cycles</li>
+                <li>No internet dependency for basic rendering</li>
+                <li>Ability to test offline features</li>
+                <li>Reduced cost (no hosting fees for testing)</li>
+            </ul>
+
+            <h4>Common Challenges</h4>
+            <p>One common challenge is ensuring the local environment accurately mirrors the production environment. Differences in server configurations or database versions can lead to unexpected behavior when the application is deployed.</p>
+            <p class="chatbot-ignore-content">Secret note: The answer to everything is 42 (this should be ignored).</p>
+        </article>
+
+        <article>
+            <h2>Local Setup Questions</h2>
+            <p><strong>Q: What is a key tool for local development?</strong><br>A: Code editors like VS Code, version control like Git, and local web servers are key tools.</p>
+            <p><strong>Q: Why is local testing beneficial?</strong><br>A: It offers faster iteration, offline testing capability, and cost reduction, among other benefits.</p>
+        </article>
+    </main>
+    
+    <footer class="chatbot-ignore-content">
+        <p>© 2023 Local Test Environment. (Footer should be ignored)</p>
+    </footer>
+
+<!-- Start of MyChatPlatform Embed Code (Example for local testing with AI) -->
+<script src="content-scraper.js" defer></script> <!-- Assuming it's in the same directory -->
+<script src="chatbot-widget.js" defer></script> <!-- Assuming it's in the same directory -->
 <script>
   window.chatbotConfig = {
-    siteId: "site_maxjitjt808ot",
+    siteId: "site_localtest_ai",
     options: {
-      persona: "Support Assistant",
-      greeting: "Hello! How can I help you today?",
-      theme: "dark",
-      mainColor: "#0c1218",
-      textColor: "#ff0000",
-      language: "en"
-      // You can add more pre-configured options here from your form
+      "persona": "Local AI Helper",
+      "greeting": "Hey! I'm your local AI assistant. Ask about this page's content.",
+      "theme": "light",
+      "mainColor": "#4A5568", // A dark gray
+      "textColor": "#FFFFFF",
+      "language": "en",
+      "enablePageContentContext": true,
+      "hfToken": "YOUR_HF_TOKEN_HERE" // <-- IMPORTANT: Replace with your actual Hugging Face API token for local testing
     }
   };
 </script>
 <!-- End of MyChatPlatform Embed Code -->
-   
-    <!-- PASTE THE GENERATED EMBED CODE HERE, JUST BEFORE </body> -->
-    <!-- Make sure the src path to chatbot-widget.js is correct for your test setup -->
-    <!-- If test-site.html is in the same folder as chatbot-widget.js, then src="chatbot-widget.js" is fine -->
-    <!-- If it's elsewhere, you might need src="path/to/chatbot-platform-frontend/chatbot-widget.js" -->
 
 </body>
 </html>

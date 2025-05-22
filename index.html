@@ -60,6 +60,17 @@
                         <option value="de">Deutsch (de)</option>
                     </select>
                 </div>
+                
+                <div class="form-group">
+                    <input type="checkbox" id="enablePageContentContext" name="enablePageContentContext" value="true" checked>
+                    <label for="enablePageContentContext" style="display: inline; margin-left: 5px;">Enable Page Content Awareness (helps answer questions about the current page)</label>
+                </div>
+
+                <div class="form-group">
+                    <label for="hfToken">Hugging Face API Token (Optional - for AI features):</label>
+                    <input type="text" id="hfToken" name="hfToken" placeholder="hf_YourTokenHere...">
+                    <small>Get your token from <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer">Hugging Face settings</a>. Required for AI-powered answers based on page content. Uses the `deepset/roberta-base-squad2` model.</small>
+                </div>
 
                 <button type="submit" id="generateCodeBtn">Generate Embed Code</button>
             </form>
@@ -69,7 +80,7 @@
             <h2>Your Embed Code</h2>
             <p>Copy this snippet and paste it just before the closing <code></body></code> tag in your website’s HTML files.</p>
             <div class="code-block">
-                <textarea id="embedCodeOutput" rows="12" readonly></textarea>
+                <textarea id="embedCodeOutput" rows="15" readonly></textarea>
                 <button id="copyCodeBtn" title="Copy to Clipboard">Copy Code</button>
             </div>
             <p id="copyStatus" class="copy-status"></p>

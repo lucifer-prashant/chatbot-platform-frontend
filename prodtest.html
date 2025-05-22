@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"> <!-- Corrected from UTF-T -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My AI Test Website</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; min-height: 150vh; /* Long page for scrolling test */ }
+        h1 { color: navy; }
+        article { max-width: 700px; margin: 20px auto; padding:15px; border:1px solid #eee; background: #f9f9f9; }
+        .chatbot-ignore-content { color: #ccc; font-style: italic; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Welcome to My AI Test Website</h1>
+    </header>
+
+    <nav class="chatbot-ignore-content">
+        <p>Navigation: Home | About | Products (This nav content should be ignored by the scraper)</p>
+    </nav>
+    
+    <main>
+        <article>
+            <h2>About Our Product: The SuperWidget</h2>
+            <p>The SuperWidget is a revolutionary new device designed to simplify your daily tasks. It integrates seamlessly with all your existing tools and platforms. Key features include an intuitive user interface, long-lasting battery life, and robust security protocols. We believe the SuperWidget will change the way you work and play.</p>
+            <p>Installation is straightforward. Just plug it in, and our setup wizard will guide you through the process in minutes. Customer support for the SuperWidget is available 24/7.</p>
+            
+            <h3>Technical Specifications</h3>
+            <ul>
+                <li>Model: SW-2024</li>
+                <li>Dimensions: 10cm x 5cm x 2cm</li>
+                <li>Weight: 150g</li>
+                <li>Connectivity: Wi-Fi, Bluetooth 5.0</li>
+                <li>Battery: 4000mAh, up to 72 hours standby</li>
+            </ul>
+
+            <h4>Pricing</h4>
+            <p>The SuperWidget is available for $199. Volume discounts are available for enterprise customers.</p>
+            <p class="chatbot-ignore-content">Internal note: margin is 30% (this should be ignored).</p>
+        </article>
+
+        <article>
+            <h2>Frequently Asked Questions</h2>
+            <p><strong>Q: How long does the SuperWidget battery last?</strong><br>A: The SuperWidget has a 4000mAh battery providing up to 72 hours of standby time. Actual usage time may vary.</p>
+            <p><strong>Q: Is the SuperWidget difficult to set up?</strong><br>A: No, installation is straightforward. A setup wizard guides you through the process.</p>
+        </article>
+    </main>
+    
+    <footer class="chatbot-ignore-content">
+        <p>© 2023 My Test Website. All rights reserved. (Footer should be ignored)</p>
+    </footer>
+
+<!-- Start of MyChatPlatform Embed Code (Example generated for AI features) -->
+<script src="https://lucifer-prashant.github.io/chatbot-platform-frontend/content-scraper.js" defer></script>
+<script src="https://lucifer-prashant.github.io/chatbot-platform-frontend/chatbot-widget.js" defer></script>
+<script>
+  window.chatbotConfig = {
+    siteId: "site_a1b2c3d4e5f6",
+    options: {
+      "persona": "AI Page Helper",
+      "greeting": "Hi! I'm the AI assistant for this page. Ask me anything about its content!",
+      "theme": "dark",
+      "mainColor": "#2c5282", // A nice blue
+      "textColor": "#ffffff",
+      "language": "en",
+      "enablePageContentContext": true,
+      "hfToken": "YOUR_HF_TOKEN_HERE" // <-- IMPORTANT: Replace with your actual Hugging Face API token
+      // "hfApiUrl": "https://api-inference.huggingface.co/models/deepset/roberta-base-squad2", // Default, can be overridden
+      // "hfConfidenceThreshold": 0.1 // Default, can be overridden
+    }
+  };
+</script>
+<!-- End of MyChatPlatform Embed Code -->
+
+</body>
+</html>
