@@ -8,14 +8,16 @@
                 theme: 'light',
                 persona: 'Chatbot',
                 language: 'en',
-                iconPosition: 'bottom-right', // Where the icon initially appears
-                windowAlignment: 'bottom-right', // Where the window initially opens relative to screen
+                iconPosition: 'bottom-right',
+                windowAlignment: 'bottom-right',
                 greeting: 'Hello! How can I help you today?',
                 mainColor: '#007bff',
                 textColor: '#ffffff',
                 pulseAnimation: true,
-                windowWidth: 350,  // Decreased width
-                windowHeight: 520 // Decreased height
+                windowWidth: 350,
+                windowHeight: 520,
+                enablePageContentContext: false, // New option
+                pageContentContextGreetingSuffix: " I can also try to answer questions about this page." // Suffix for greeting if context is enabled
             }
         };
 
@@ -26,6 +28,18 @@
         };
 
         console.log('Chatbot Loaded with config:', config);
+
+        // --- Initialize Content Scraper if enabled and available ---
+        if (config.options.enablePageContentContext && window.ChatbotContentScraper && typeof window.ChatbotContentScraper.scrape === 'function') {
+            console.log('Chatbot: Page content context is enabled. Attempting to scrape page.');
+            try {
+                window.ChatbotContentScraper.scrape();
+            } catch (e) {
+                console.error("Chatbot: Error initializing page scraper.", e);
+            }
+        } else if (config.options.enablePageContentContext) {
+            console.warn('Chatbot: Page content context is enabled in config, but ChatbotContentScraper not found. Make sure content-scraper.js is loaded before chatbot-widget.js.');
+        }
 
         let chatbotContainer, chatButton, chatWindow, chatHeader, messagesDiv, inputField, sendButton, internalCloseButton;
         let isChatOpen = false;
@@ -55,10 +69,8 @@
             chatbotContainer.id = 'my-chatbot-container';
             chatbotContainer.style.position = 'fixed';
             chatbotContainer.style.zIndex = '10000';
-            // Container will be transparent, its size will match its content (button or window)
             chatbotContainer.style.width = 'auto';
             chatbotContainer.style.height = 'auto';
-
 
             chatButton = document.createElement('button');
             chatButton.id = 'my-chatbot-button';
@@ -94,7 +106,7 @@
 
         function applyStyles() {
             const style = document.createElement('style');
-            const themeStyles = { /* ... (same as before) ... */
+            const themeStyles = {
                 light: {
                     bgColor: '#ffffff', textColor: '#333333', headerBg: config.options.mainColor, headerText: config.options.textColor,
                     inputBg: '#f1f1f1', borderColor: '#e0e0e0', botMessageBg: '#e9e9e9', botMessageText: '#333333',
@@ -110,10 +122,9 @@
 
             style.textContent = `
                 #my-chatbot-container {
-                    /* Positioned by JS */
-                    transition: left 0.2s ease-out, right 0.2s ease-out, top 0.2s ease-out, bottom 0.2s ease-out; /* Smooth repositioning */
+                    transition: left 0.2s ease-out, right 0.2s ease-out, top 0.2s ease-out, bottom 0.2s ease-out;
                 }
-                #my-chatbot-button { /* ... (same as before, including pulse animation) ... */
+                #my-chatbot-button {
                     background-color: ${currentTheme.headerBg}; color: ${currentTheme.headerText}; border: none;
                     border-radius: 50%; width: 60px; height: 60px; font-size: 24px; cursor: pointer;
                     box-shadow: 0 4px 12px rgba(0,0,0,0.25); display: flex; justify-content: center;
@@ -139,26 +150,24 @@
                     display: none; flex-direction: column; overflow: hidden;
                     opacity: 0; transform: scale(0.95);
                     transition: opacity 0.25s ease-out, transform 0.25s ease-out;
-                    /* Window itself is not positioned; it fills the container when container holds window */
                 }
                 #my-chatbot-window.open {
                     opacity: 1; transform: scale(1);
                 }
-                #my-chatbot-header { /* ... (same as before, including cursor: move) ... */
+                #my-chatbot-header {
                     background-color: ${currentTheme.headerBg}; color: ${currentTheme.headerText}; padding: 12px 18px;
                     font-weight: 600; display: flex; justify-content: space-between; align-items: center;
                     border-top-left-radius: 12px; border-top-right-radius: 12px;
                     flex-shrink: 0; cursor: move;
                 }
                 #my-chatbot-header span { font-size: 1.1em; }
-                #my-chatbot-close-btn { /* ... (same as before) ... */
+                #my-chatbot-close-btn {
                     background: none; border: none; color: ${currentTheme.headerText}; cursor: pointer;
                     padding: 5px; line-height: 1; opacity: 0.8; transition: opacity 0.2s;
                 }
                 #my-chatbot-close-btn:hover { opacity: 1; }
                 #my-chatbot-close-btn svg { fill: ${currentTheme.headerText}; }
 
-                /* --- MESSAGES, INPUT, SEND BUTTON CSS (Restored and Checked) --- */
                 #my-chatbot-messages {
                     flex-grow: 1; padding: 15px; overflow-y: auto; border-bottom: 1px solid ${currentTheme.borderColor};
                     display: flex; flex-direction: column; gap: 10px;
@@ -202,7 +211,7 @@
                 #my-chatbot-input-area {
                     display: flex; padding: 12px; border-top: 1px solid ${currentTheme.borderColor};
                     background-color: ${currentTheme.bgColor}; align-items: center;
-                    flex-shrink: 0; /* Prevent input area from shrinking */
+                    flex-shrink: 0;
                 }
                 #my-chatbot-input {
                     flex-grow: 1; padding: 10px 15px; border: 1px solid ${currentTheme.borderColor};
@@ -228,58 +237,42 @@
         }
 
         function setIconContainerPosition() {
-            // Position the container for the icon state
             const margin = '20px';
-            chatbotContainer.style.width = 'auto'; // Icon size
-            chatbotContainer.style.height = 'auto'; // Icon size
-
+            chatbotContainer.style.width = 'auto';
+            chatbotContainer.style.height = 'auto';
             if (config.options.iconPosition === 'bottom-left') {
-                chatbotContainer.style.left = margin;
-                chatbotContainer.style.right = 'auto';
-                chatbotContainer.style.bottom = margin;
-                chatbotContainer.style.top = 'auto';
-            } else { // Default bottom-right
-                chatbotContainer.style.right = margin;
-                chatbotContainer.style.left = 'auto';
-                chatbotContainer.style.bottom = margin;
-                chatbotContainer.style.top = 'auto';
+                chatbotContainer.style.left = margin; chatbotContainer.style.right = 'auto';
+                chatbotContainer.style.bottom = margin; chatbotContainer.style.top = 'auto';
+            } else {
+                chatbotContainer.style.right = margin; chatbotContainer.style.left = 'auto';
+                chatbotContainer.style.bottom = margin; chatbotContainer.style.top = 'auto';
             }
         }
 
         function setWindowContainerPosition(isInitialOpen = false) {
-            // Position the container for the window state
-            const margin = 20; // Margin from viewport edge
+            const margin = 20;
             chatbotContainer.style.width = config.options.windowWidth + 'px';
             chatbotContainer.style.height = config.options.windowHeight + 'px';
 
-            if (isInitialOpen && lastWindowPosition.x === null) { // First open ever, no drag history
+            if (isInitialOpen && lastWindowPosition.x === null) {
                 if (config.options.windowAlignment === 'bottom-left') {
-                    chatbotContainer.style.left = margin + 'px';
-                    chatbotContainer.style.bottom = margin + 'px';
-                    chatbotContainer.style.right = 'auto';
-                    chatbotContainer.style.top = 'auto';
-                } else { // Default bottom-right
-                    chatbotContainer.style.right = margin + 'px';
-                    chatbotContainer.style.bottom = margin + 'px';
-                    chatbotContainer.style.left = 'auto';
-                    chatbotContainer.style.top = 'auto';
+                    chatbotContainer.style.left = margin + 'px'; chatbotContainer.style.bottom = margin + 'px';
+                    chatbotContainer.style.right = 'auto'; chatbotContainer.style.top = 'auto';
+                } else {
+                    chatbotContainer.style.right = margin + 'px'; chatbotContainer.style.bottom = margin + 'px';
+                    chatbotContainer.style.left = 'auto'; chatbotContainer.style.top = 'auto';
                 }
-            } else if (lastWindowPosition.x !== null) { // Re-opening after drag
-                chatbotContainer.style.left = lastWindowPosition.x + 'px';
-                chatbotContainer.style.top = lastWindowPosition.y + 'px';
-                chatbotContainer.style.bottom = 'auto';
-                chatbotContainer.style.right = 'auto';
-            } else { // Fallback (should be covered by initialOpen logic)
-                 chatbotContainer.style.right = margin + 'px';
-                 chatbotContainer.style.bottom = margin + 'px';
-                 chatbotContainer.style.left = 'auto';
-                 chatbotContainer.style.top = 'auto';
+            } else if (lastWindowPosition.x !== null) {
+                chatbotContainer.style.left = lastWindowPosition.x + 'px'; chatbotContainer.style.top = lastWindowPosition.y + 'px';
+                chatbotContainer.style.bottom = 'auto'; chatbotContainer.style.right = 'auto';
+            } else {
+                 chatbotContainer.style.right = margin + 'px'; chatbotContainer.style.bottom = margin + 'px';
+                 chatbotContainer.style.left = 'auto'; chatbotContainer.style.top = 'auto';
             }
         }
 
-
-        function addMessage(text, sender, isTyping = false) { /* ... (same as before) ... */
-             const messageElement = document.createElement('div');
+        function addMessage(text, sender, isTyping = false) {
+            const messageElement = document.createElement('div');
             messageElement.classList.add('chatbot-message', sender);
             if (isTyping) {
                 messageElement.classList.add('typing-indicator');
@@ -297,48 +290,47 @@
         function openChatWindow() {
             if (isChatOpen) return;
             isChatOpen = true;
-
-            setWindowContainerPosition(true); // Position container for window (true for initial open logic)
-
+            setWindowContainerPosition(true);
             chatButton.style.display = 'none';
             chatWindow.style.display = 'flex';
-
             void chatWindow.offsetWidth;
             chatWindow.classList.add('open');
             inputField.focus();
 
-            if (isFirstOpen && config.options.greeting) {
-                setTimeout(() => {
-                    if (isChatOpen) addMessage(config.options.greeting, 'bot');
-                }, 150);
+            if (isFirstOpen) {
+                let greetingMsg = config.options.greeting;
+                if (config.options.enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
+                    greetingMsg += (config.options.pageContentContextGreetingSuffix || " I can also try to answer questions about this page.");
+                }
+                 if (greetingMsg) {
+                    setTimeout(() => {
+                        if (isChatOpen) addMessage(greetingMsg, 'bot');
+                    }, 150);
+                }
                 isFirstOpen = false;
             }
         }
 
         function closeChatWindow() {
             if (!isChatOpen) return;
-
-            // Store current position BEFORE resetting container for icon
             const currentRect = chatbotContainer.getBoundingClientRect();
             lastWindowPosition.x = currentRect.left;
             lastWindowPosition.y = currentRect.top;
-
-            isChatOpen = false; // Set state before timeout
-
+            isChatOpen = false;
             chatWindow.classList.remove('open');
-
             setTimeout(() => {
-                // Check state again in case of rapid open/close
                 if (!isChatOpen) {
                     chatWindow.style.display = 'none';
                     chatButton.style.display = 'flex';
-                    setIconContainerPosition(); // Reset container for icon
+                    setIconContainerPosition();
                 }
             }, 260);
         }
 
-        function getBotResponse(userInput) { /* ... (same as before) ... */
+        function getBotResponse(userInput) {
             const lowerInput = userInput.toLowerCase().trim();
+
+            // 1. Basic hardcoded responses
             if (lowerInput.includes("hello") || lowerInput.includes("hi") || lowerInput.includes("hey")) {
                 return "Hello there! How can I assist you today?";
             } else if (lowerInput.includes("how are you")) {
@@ -346,7 +338,11 @@
             } else if (lowerInput.includes("your name") || lowerInput.includes("who are you")) {
                 return `I am ${config.options.persona}, your virtual assistant.`;
             } else if (lowerInput.includes("help") || lowerInput.includes("support")) {
-                return "Sure, I can try to help. Please describe your question or issue.";
+                let helpMsg = "Sure, I can try to help. Please describe your question or issue.";
+                if (config.options.enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
+                     helpMsg += " You can also ask me about the content on this page.";
+                }
+                return helpMsg;
             } else if (lowerInput.includes("time")) {
                 return `The current time is ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`;
             } else if (lowerInput.includes("date")) {
@@ -363,20 +359,36 @@
                     "Parallel lines have so much in common. It’s a shame they’ll never meet."
                 ];
                 return jokes[Math.floor(Math.random() * jokes.length)];
-            } else if (lowerInput.length > 0 && lowerInput.length < 4) {
+            }
+
+            // 2. Try to answer from page content if enabled and available
+            if (config.options.enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
+                const pageContextAnswer = window.ChatbotContentScraper.search(userInput);
+                if (pageContextAnswer) {
+                    return pageContextAnswer;
+                }
+            }
+            
+            // 3. More generic fallbacks if input is very short or no context found
+            if (lowerInput.length > 0 && lowerInput.length < 4 && (!config.options.enablePageContentContext || !window.ChatbotContentScraper || !window.ChatbotContentScraper.isScraped())) {
                  return "Could you please elaborate a little more on that?";
             }
 
+            // 4. Final fallbacks
             const fallbacks = [
                 "I'm still learning. Could you rephrase that or ask something else?",
                 "Sorry, I didn't quite understand. How about asking in a different way?",
                 `I'm not sure about that. You can ask about our services or general topics.`,
                 "My apologies, I don't have specific information on that right now."
             ];
+            if (config.options.enablePageContentContext && window.ChatbotContentScraper && window.ChatbotContentScraper.isScraped()) {
+                fallbacks.push("I couldn't find specific information about that on this page. Could you try asking differently?");
+            }
             return fallbacks[Math.floor(Math.random() * fallbacks.length)];
         }
-        function handleSendMessage() { /* ... (same as before) ... */
-             const messageText = inputField.value.trim();
+
+        function handleSendMessage() {
+            const messageText = inputField.value.trim();
             if (messageText) {
                 addMessage(messageText, 'user');
                 inputField.value = '';
@@ -394,46 +406,43 @@
             }
         }
 
-        function onMouseDown(e) { /* ... (same as before, but check target relative to chatWindow) ... */
-            if (e.target.closest('button, input, #my-chatbot-messages')) return; // Check if click is on interactive elements inside
-
+        function onMouseDown(e) {
+            if (e.target.closest('button, input, #my-chatbot-messages')) return;
             isDragging = true;
             const containerRect = chatbotContainer.getBoundingClientRect();
             offsetX = e.clientX - containerRect.left;
             offsetY = e.clientY - containerRect.top;
-
             chatbotContainer.style.cursor = 'grabbing';
-            document.body.style.userSelect = 'none'; // Prevent text selection globally
+            document.body.style.userSelect = 'none';
             document.addEventListener('mousemove', onMouseMove);
             document.addEventListener('mouseup', onMouseUp);
         }
-        function onMouseMove(e) { /* ... (same as before, ensure const_winWidth/Height are from chatbotContainer) ... */
+
+        function onMouseMove(e) {
             if (!isDragging) return;
             e.preventDefault();
-
             let newX = e.clientX - offsetX;
             let newY = e.clientY - offsetY;
-
             const contWidth = chatbotContainer.offsetWidth;
             const contHeight = chatbotContainer.offsetHeight;
             newX = Math.max(0, Math.min(newX, window.innerWidth - contWidth));
             newY = Math.max(0, Math.min(newY, window.innerHeight - contHeight));
-
             chatbotContainer.style.left = newX + 'px';
             chatbotContainer.style.top = newY + 'px';
             chatbotContainer.style.right = 'auto';
             chatbotContainer.style.bottom = 'auto';
         }
-        function onMouseUp() { /* ... (same as before) ... */
+
+        function onMouseUp() {
             if (!isDragging) return;
             isDragging = false;
             chatbotContainer.style.cursor = 'default';
-            document.body.style.userSelect = ''; // Re-enable text selection
+            document.body.style.userSelect = '';
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
         }
 
-        function setupEventListeners() { /* ... (same as before) ... */
+        function setupEventListeners() {
             chatButton.addEventListener('click', openChatWindow);
             internalCloseButton.addEventListener('click', closeChatWindow);
             sendButton.addEventListener('click', handleSendMessage);
@@ -448,9 +457,9 @@
 
         createChatbotElements();
         applyStyles();
-        setIconContainerPosition(); // Start with icon position
+        setIconContainerPosition();
         setupEventListeners();
 
-        console.log(`Chatbot for site ${config.siteId} (draggable, revised) initialized.`);
+        console.log(`Chatbot for site ${config.siteId} (draggable, page-context aware) initialized.`);
     });
 })();
